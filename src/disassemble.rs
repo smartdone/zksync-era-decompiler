@@ -1,4 +1,5 @@
 use std::fmt::format;
+use alloy::hex;
 use log::info;
 use zkevm_opcode_defs::decoding::encoding_mode_production::EncodingModeProduction;
 use zkevm_opcode_defs::decoding::{VariantMonotonicNumber, VmEncodingMode};
@@ -8,7 +9,7 @@ use zkevm_opcode_defs::imm_mem_modifiers::ImmMemHandlerFlags;
 use zkevm_opcode_defs::definitions::uma::UMAOpcode;
 use zkevm_opcode_defs::imm_mem_modifiers::RegOrImmFlags;
 use zkevm_opcode_defs::definitions::shift::ShiftOpcode;
-
+use alloy::primitives::U256;
 #[derive(Debug, Clone, Copy)]
 pub struct Disassemble;
 
@@ -19,34 +20,43 @@ impl Disassemble {
         } else {
             hex_string
         };
-        let code_bytes = hex_string.as_bytes();
+        let code_bytes = match  hex::decode(hex_string){
+            Ok(bytes) => bytes,
+            Err(e) => {
+                panic!("Failed to decode hex string: {}", e)
+            }
+        };
         Self::disassemble_bytes(code_bytes);
     }
 
-    pub fn disassemble_bytes(code_bytes: &[u8]) {
-        let mut code_page: Vec<u64> = Vec::new();
-        let mut opcodes: Vec<DecodedOpcode> = Vec::new();
-        for chunk in code_bytes.chunks(16) {
-            let hex_chunk = std::str::from_utf8(chunk).unwrap();
-            let inst_val = match u64::from_str_radix(hex_chunk, 16) {
-                Ok(val) => val,
-                Err(_) => {
-                    panic!("Failed to parse hex chunk: {}", hex_chunk)
-                }
-            };
+    pub fn disassemble_bytes(code_bytes:Vec<u8>) {
+        let mut code_page: Vec<U256> = Vec::new();
+        for chunk in code_bytes.chunks(32) {
+            let item = U256::from_be_slice(chunk);
+            code_page.push(item);
+        }
 
-            code_page.push(inst_val);
+        let mut opcodes: Vec<DecodedOpcode> = Vec::new();
+        for chunk in code_bytes.chunks(8) {
+            let mut padded_chunk = [0u8; 8];
+            let len = chunk.len().min(8);
+            padded_chunk[..len].copy_from_slice(&chunk[..len]);
+            let inst_val = u64::from_be_bytes(padded_chunk);
+
             let (decode_opcode, _) = EncodingModeProduction::parse_preliminary_variant_and_absolute_number(inst_val);
             opcodes.push(decode_opcode);
         }
 
         for code in opcodes {
             let asm = Self::decode_opcode_to_string(code, code_page.clone());
-            println!("{}", asm);
+            if asm != "" {
+                println!("{}", asm);
+            }
+
         }
     }
 
-    pub fn decode_opcode_to_string(code: DecodedOpcode, code_page: Vec<u64>) -> String {
+    pub fn decode_opcode_to_string(code: DecodedOpcode, code_page: Vec<U256>) -> String {
         match code.variant.opcode{
             Opcode::Invalid(_) => "".to_string(),
             Opcode::Nop(_nop) => {
@@ -59,7 +69,7 @@ impl Disassemble {
         }
     }
 
-    fn get_src0(code: DecodedOpcode, code_page: Vec<u64>) -> String {
+    fn get_src0(code: DecodedOpcode, code_page: Vec<U256>) -> String {
         match code.variant.src0_operand_type {
             Operand::RegOnly => {
                 format!("r{:?}", code.src0_reg_idx)
@@ -93,8 +103,10 @@ impl Disassemble {
                     },
                     ImmMemHandlerFlags::UseCodePage => {
                         if code.imm_0 as usize > code_page.len() {
+                            println!("use imm_0");
                             format!("0x{:x}", code.imm_0)
                         } else {
+                            println!("use code offset {}", code.imm_0);
                             format!("0x{:x}", code_page[code.imm_0 as usize])
                         }
                     }
@@ -103,7 +115,7 @@ impl Disassemble {
         }
     }
 
-    fn get_dst0(code: DecodedOpcode, code_page: Vec<u64>) -> String {
+    fn get_dst0(code: DecodedOpcode, code_page: Vec<U256>) -> String {
         match code.variant.dst0_operand_type {
             Operand::RegOnly => {
                 format!("r{:?}", code.dst0_reg_idx)
@@ -155,7 +167,7 @@ mod tests {
     #[test]
     fn test_disassemble_hex_string() {
         // cargo test test_disassemble_hex_string -- --nocapture
-        let hex_string = "0x0000008003000039000000400030043f00000000030100190000006003300270000000100330019700000001022001900000001a0000c13d000000040230008c000000360000413d000000000201043b000000e002200270000000120420009c000000290000613d000000130420009c000000220000613d000000140220009c000000360000c13d0000000002000416000000000202004b000000360000c13d000000040230008a000000200220008c000000360000413d0000000401100370000000000101043b000000390000013d0000000001000416000000000101004b000000360000c13d00000020010000390000010000100443000001200000044300000011010000410000003d0001042e0000000001000416000000000101004b000000360000c13d000000000100041a000000800010043f00000017010000410000003d0001042e0000000001000416000000000101004b000000360000c13d000000000100041a000000010200008a000000000221004b000000380000c13d000000150100004100000000001004350000001101000039000000040010043f00000016010000410000003e0001043000000000010000190000003e000104300000000101100039000000000010041b00000000010000190000003d0001042e0000003c000004320000003d0001042e0000003e00010430000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000000000000000000000000000d09de08a000000000000000000000000000000000000000000000000000000008381f58a000000000000000000000000000000000000000000000000000000003fb5c1cb4e487b710000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000240000000000000000000000000000000000000000000000000000000000000020000000800000000000000000a9fec98f579a72aad563d3eabb878855a8e580e39796f9db7fa2e3dfaf43ee0d";
+        let hex_string = "0000008003000039000000400030043f00000001002001900000001a0000c13d00000060021002700000001202200197000000040020008c000000380000413d000000000301043b000000e003300270000000140030009c000000290000613d000000150030009c000000220000613d000000160030009c000000380000c13d000000240020008c000000380000413d0000000002000416000000000002004b000000380000c13d0000000401100370000000000101043b000000000010041b0000000001000019000000450001042e0000000001000416000000000001004b000000380000c13d0000002001000039000001000010044300000120000004430000001301000041000000450001042e0000000001000416000000000001004b000000380000c13d000000000100041a000000800010043f0000001c01000041000000450001042e0000000001000416000000000001004b000000380000c13d0000000001000411000000000001004b0000003a0000c13d000000000100041a000000010110003a000000170000c13d0000001a01000041000000000010043f0000001101000039000000040010043f0000001b010000410000004600010430000000000100001900000046000104300000001701000041000000800010043f0000002001000039000000840010043f0000000401000039000000a40010043f0000001801000041000000c40010043f000000190100004100000046000104300000004400000432000000450001042e0000004600010430000000000000000000000000000000000000000000000000000000000000000000000000ffffffff000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000000000000000000000000000d09de08a000000000000000000000000000000000000000000000000000000008381f58a000000000000000000000000000000000000000000000000000000003fb5c1cb08c379a000000000000000000000000000000000000000000000000000000000787878780000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000640000008000000000000000004e487b7100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002400000000000000000000000000000000000000000000000000000000000000200000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a26469706673582212200c1222991df1b7c18bf0912541eb0940ac1710786f62097cec61a60770265bd364736f6c6378247a6b736f6c633a312e352e31333b736f6c633a302e382e32393b6c6c766d3a312e302e310055";
         Disassemble::disassemble_hex_string(hex_string);
     }
 }
