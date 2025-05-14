@@ -3,7 +3,7 @@ use alloy::hex;
 use log::info;
 use zkevm_opcode_defs::decoding::encoding_mode_production::EncodingModeProduction;
 use zkevm_opcode_defs::decoding::{VariantMonotonicNumber, VmEncodingMode};
-use zkevm_opcode_defs::{DecodedOpcode, OpcodeVariant, Operand};
+use zkevm_opcode_defs::{BinopOpcode, DecodedOpcode, OpcodeVariant, Operand, JumpOpcode};
 use zkevm_opcode_defs::definitions::all::Opcode;
 use zkevm_opcode_defs::imm_mem_modifiers::ImmMemHandlerFlags;
 use zkevm_opcode_defs::definitions::uma::UMAOpcode;
@@ -57,6 +57,7 @@ impl Disassemble {
     }
 
     pub fn decode_opcode_to_string(code: DecodedOpcode, code_page: Vec<U256>) -> String {
+        println!("DecodedOpcode: {:?}", code);
         match code.variant.opcode{
             Opcode::Invalid(_) => "".to_string(),
             Opcode::Nop(_nop) => {
@@ -65,6 +66,55 @@ impl Disassemble {
             Opcode::Add(_add) => {
                 format!("add\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
             },
+            Opcode::UMA(_uma) => {
+                match _uma { 
+                    UMAOpcode::AuxHeapRead => {
+                        // TODO
+                        format!("aux_heap_read\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    UMAOpcode::AuxHeapWrite => {
+                        // TODO
+                        format!("stm.ah\t{}, r{}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx)
+                    },
+                    UMAOpcode::FatPointerRead => {
+                        // TODO
+                        format!("fat_pointer_read\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    UMAOpcode::StaticMemoryRead => {
+                        // TODO
+                        format!("static_memory_read\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    UMAOpcode::StaticMemoryWrite => {
+                        // TODO
+                        format!("static_memory_write\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    UMAOpcode::HeapRead => {
+                        // TODO
+                        format!("aux_heap_read\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    UMAOpcode::HeapWrite => {
+                        format!("stm.h\t{}, r{}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx)
+                    }
+                }
+            },
+            Opcode::Binop(_binop) => {
+                match _binop { 
+                    BinopOpcode::And => {
+                        format!("and\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    BinopOpcode::Or => {
+                        // TODO
+                        format!("or\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    BinopOpcode::Xor => {
+                        // TODO
+                        format!("xor\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                }
+            },
+            Opcode::Jump(_jump) => {
+                format!("jump\t{}", Self::get_src0(code, code_page.clone()))
+            }
             _ => "".to_string(),
         }
     }
@@ -103,10 +153,8 @@ impl Disassemble {
                     },
                     ImmMemHandlerFlags::UseCodePage => {
                         if code.imm_0 as usize > code_page.len() {
-                            println!("use imm_0");
                             format!("0x{:x}", code.imm_0)
                         } else {
-                            println!("use code offset {}", code.imm_0);
                             format!("0x{:x}", code_page[code.imm_0 as usize])
                         }
                     }
