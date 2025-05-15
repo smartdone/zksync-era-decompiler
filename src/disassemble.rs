@@ -67,7 +67,7 @@ impl Disassemble {
                 format!("add\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
             },
             Opcode::UMA(_uma) => {
-                match _uma { 
+                match _uma {
                     UMAOpcode::AuxHeapRead => {
                         // TODO
                         format!("aux_heap_read\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
@@ -98,7 +98,7 @@ impl Disassemble {
                 }
             },
             Opcode::Binop(_binop) => {
-                match _binop { 
+                match _binop {
                     BinopOpcode::And => {
                         format!("and\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
                     },
@@ -114,7 +114,23 @@ impl Disassemble {
             },
             Opcode::Jump(_jump) => {
                 format!("jump\t{}", Self::get_src0(code, code_page.clone()))
-            }
+            },
+            Opcode::Shift(_shift) => {
+                match _shift { 
+                    ShiftOpcode::Shr => {
+                        format!("shr\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    ShiftOpcode::Shl => {
+                        format!("shl\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    ShiftOpcode::Ror => {
+                        format!("ror\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                    ShiftOpcode::Rol => {
+                        format!("rol\t{}, r{:?}, {}", Self::get_src0(code, code_page.clone()), code.src1_reg_idx, Self::get_dst0(code, code_page.clone()))
+                    },
+                }
+            },
             _ => "".to_string(),
         }
     }
